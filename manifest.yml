@@ -1,0 +1,54 @@
+modules:
+  # Admin page: Jira settings > Apps > Connect Jira to n8n.
+  jira:adminPage:
+    - key: n8n-bridge-admin
+      resource: admin
+      resolver:
+        function: adminResolver
+      render: native
+      title: Connect Jira to n8n
+  # Jira -> n8n: new, updated and commented issues are sent to the n8n webhook.
+  # ignoreSelf: changes made by this app (comments from n8n) are not sent back, so there are no loops.
+  trigger:
+    - key: issue-events-to-n8n
+      function: onIssueEvent
+      events:
+        - avi:jira:created:issue
+        - avi:jira:updated:issue
+        - avi:jira:commented:issue
+      filter:
+        ignoreSelf: true
+  # n8n -> Jira: n8n calls this URL to add a comment to an issue.
+  webtrigger:
+    - key: n8n-inbound
+      function: inbound
+      urlFormat: v2
+      request:
+        authentication: none
+      response:
+        type: dynamic
+  function:
+    - key: onIssueEvent
+      handler: index.onIssueEvent
+    - key: inbound
+      handler: index.inbound
+    - key: adminResolver
+      handler: index.adminResolver
+resources:
+  - key: admin
+    path: src/frontend/index.jsx
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - storage:app
+  external:
+    fetch:
+      backend:
+        - address: https://*.app.n8n.cloud
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/3da9b929-f95b-46db-92d7-a1facc51a425

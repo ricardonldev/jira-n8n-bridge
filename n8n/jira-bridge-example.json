@@ -1,0 +1,301 @@
+{
+  "name": "Jira <-> n8n bridge (example)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jira-bridge",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "name": "Jira events",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "jira-bridge",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Jira bridge secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "url",
+              "name": "jiraInboundUrl",
+              "type": "string",
+              "value": "PASTE_THE_URL_FROM_JIRA_SETTINGS"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Jira events').item.json.body.event }}",
+                    "rightValue": "issue_created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Jira events').item.json.body.event }}",
+                    "rightValue": "issue_commented",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $('Jira events').item.json.body.comment.text }}",
+                    "rightValue": "/done",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Comment starting with /done"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Jira events').item.json.body.event }}",
+                    "rightValue": "issue_updated",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Issue updated"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "What happened in Jira",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.jiraInboundUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ issueKey: $('Jira events').item.json.body.issueKey, action: 'comment', comment: 'n8n received this new issue from project ' + $('Jira events').item.json.body.projectKey + '.' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Reply with a comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        -200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Jira bridge secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.jiraInboundUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ issueKey: $('Jira events').item.json.body.issueKey, action: 'transition', transition: 'Done' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Move the issue to Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Jira bridge secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.jiraInboundUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ issueKey: $('Jira events').item.json.body.issueKey, action: 'labels', labels: ['seen-by-n8n'] }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "name": "Add a label",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Jira bridge secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Jira <-> n8n bridge (example)\nWorks with the **Jira n8n Bridge** Forge app.\n\n### What it does\n- A new Jira issue gets a comment back from n8n.\n- A comment starting with **/done** moves the issue to Done.\n- Any other update adds the label **seen-by-n8n**.\nReplace these three actions with your own automation: Slack, a database, an AI step, and so on.\n\n### Setup (5 minutes)\n1. In Jira, open **Settings > Apps > Connect Jira to n8n**, click **Create secret** and copy it.\n2. In n8n, create a **Header Auth** credential named \"Jira bridge secret\": name `X-Bridge-Secret`, value = the secret. Select it in **Jira events** and in the three HTTP nodes.\n3. Activate this workflow and copy the production URL of **Jira events** into the Jira settings page (n8n webhook URL).\n4. Copy the \"n8n to Jira\" URL from the same page into **Settings**.\n\nEvents sent by the app: issue_created, issue_updated (with `changes`), issue_commented (with `comment.text`). Actions it accepts: comment, transition, labels.",
+        "height": 600,
+        "width": 480
+      },
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -260
+      ]
+    }
+  ],
+  "connections": {
+    "Jira events": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "What happened in Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "What happened in Jira": {
+      "main": [
+        [
+          {
+            "node": "Reply with a comment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Move the issue to Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add a label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "executionTimeout": 120
+  },
+  "active": false
+}
